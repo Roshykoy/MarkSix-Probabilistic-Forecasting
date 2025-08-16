@@ -164,57 +164,62 @@ class GenerativeEnsemble:
             'temporal': [],
             'i_ching': []
         }
-        
+
         current_index = len(self.df)
-        
+
+        try:
+            # ------------------------------------------------------------------
+            # Generative score (from CVAE) - batch encoded for all candidates
+            # ------------------------------------------------------------------
+            with torch.no_grad():
+                # Get temporal context once
+                sequence = self.cvae_model.temporal_encoder.prepare_sequence_data(
+                    self.df, current_index
+                ).to(self.device)
+                context, _ = self.cvae_model.temporal_encoder(sequence)
+
+                # Encode all candidates in one batch
+                mu, logvar = self.cvae_model.encode(
+                    candidates, self.feature_engineer.pair_counts
+                )
+                z = self.cvae_model.reparameterize(mu, logvar)
+
+                # Expand context for all candidates and decode
+                batch_context = context.expand(len(candidates), -1)
+                _, probs = self.cvae_model.decoder(z, batch_context)
+
+                # Compute likelihoods for all combinations
+                target_tensor = torch.tensor(candidates, device=self.device) - 1
+                gathered = torch.gather(probs, 2, target_tensor.unsqueeze(-1)).squeeze(-1)
+                combo_likelihoods = torch.prod(gathered.clamp(min=1e-8), dim=1)
+                scores_dict['generative'] = (
+                    torch.log(combo_likelihoods + 1e-8).cpu().numpy().tolist()
+                )
+        except Exception as e:
+            print(f"Warning: Error computing generative scores: {e}")
+            scores_dict['generative'] = [0.0] * len(candidates)
+
+        # ------------------------------------------------------------------
+        # Temporal and I-Ching scores (still computed per-candidate)
+        # ------------------------------------------------------------------
         for combination in candidates:
             try:
-                # Generative score (from CVAE)
-                with torch.no_grad():
-                    # Get temporal context
-                    sequence = self.cvae_model.temporal_encoder.prepare_sequence_data(
-                        self.df, current_index
-                    ).to(self.device)
-                    context, _ = self.cvae_model.temporal_encoder(sequence)
-                    
-                    # Encode combination
-                    mu, logvar = self.cvae_model.encode([combination], self.feature_engineer.pair_counts)
-                    z = self.cvae_model.reparameterize(mu, logvar)
-                    
-                    # Get generative probability
-                    reconstruction_logits, probs = self.cvae_model.decoder(z, context)
-                    
-                    # Compute likelihood of this specific combination
-                    target_tensor = torch.tensor([combination], device=self.device) - 1  # 0-based
-                    combo_likelihood = 1.0
-                    for pos in range(6):
-                        prob_val = probs[0, pos, target_tensor[0, pos]].item()
-                        combo_likelihood *= max(prob_val, 1e-8)  # Prevent zero probability
-                    
-                    scores_dict['generative'].append(float(np.log(combo_likelihood + 1e-8)))
-            except Exception as e:
-                print(f"Warning: Error computing generative score for {combination}: {e}")
-                scores_dict['generative'].append(0.0)
-            
-            try:
-                # Temporal score
                 temporal_score = self.temporal_scorer.score(combination, current_index)
-                scores_dict['temporal'].append(temporal_score)
             except Exception as e:
                 print(f"Warning: Error computing temporal score for {combination}: {e}")
-                scores_dict['temporal'].append(0.0)
-            
+                temporal_score = 0.0
+            scores_dict['temporal'].append(temporal_score)
+
             try:
-                # I-Ching score
                 if self.use_i_ching and self.i_ching_scorer:
                     i_ching_score = self.i_ching_scorer.score(combination)
-                    scores_dict['i_ching'].append(i_ching_score)
                 else:
-                    scores_dict['i_ching'].append(0.0)
+                    i_ching_score = 0.0
             except Exception as e:
                 print(f"Warning: Error computing I-Ching score for {combination}: {e}")
-                scores_dict['i_ching'].append(0.0)
-        
+                i_ching_score = 0.0
+            scores_dict['i_ching'].append(i_ching_score)
+
         return scores_dict
     
     def ensemble_rerank(self, candidates, scores_dict):

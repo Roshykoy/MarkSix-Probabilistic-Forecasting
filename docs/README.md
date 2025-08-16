@@ -16,6 +16,7 @@ Welcome to the comprehensive documentation for the MarkSix Probabilistic Forecas
 - **[Troubleshooting Guide](troubleshooting_guide.md)** - Common issues and solutions
 - **[Debugging Audit Report](DEBUGGING_AUDIT_REPORT.md)** - Comprehensive debugging analysis
 - **[Optimization Module Fix Report](OPTIMIZATION_MODULE_FIXED.md)** - Recent optimization module fixes
+- **[Inference Runtime Improvement](INFERENCE_RUNTIME_IMPROVEMENT.md)** - Batch scoring optimization and timing
 
 ### 📊 API Documentation
 - **[API Documentation](api/)** - Code API references (coming soon)
