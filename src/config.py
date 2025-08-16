@@ -129,6 +129,7 @@ CONFIG = {
     "generation_temperature": 1.0,   # Increased from 0.8 (less confident)
     "num_generation_samples": 10,    # Reduced from 50
     "top_k_sampling": 5,             # Reduced from 10
+    "generation_batch_size": 1024,   # Maximum samples per generation batch
     "ensemble_selection_method": "fixed_weights",  # Changed from "meta_learned" for stability
     
     # Evaluation Parameters

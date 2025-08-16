@@ -40,7 +40,13 @@ class GenerativeEnsemble:
         self.cvae_model.eval()
         self.meta_learner.eval()
         
-    def generate_candidates(self, num_candidates=50, temperature=0.8, diversity_factor=1.0):
+    def generate_candidates(
+        self,
+        num_candidates=50,
+        temperature=0.8,
+        diversity_factor=1.0,
+        generation_batch_size=None,
+    ):
         """
         Generate candidate number combinations using the CVAE.
         
@@ -48,6 +54,7 @@ class GenerativeEnsemble:
             num_candidates: Number of combinations to generate
             temperature: Sampling temperature (higher = more diverse)
             diversity_factor: Factor to encourage diversity in latent sampling
+            generation_batch_size: Maximum number of samples to generate per batch
         
         Returns:
             candidates: List of unique 6-number combinations
@@ -66,10 +73,13 @@ class GenerativeEnsemble:
                 # Generate multiple batches for diversity
                 candidates = []
                 generation_scores = []
-                
-                batch_size = min(10, num_candidates)
+
+                if generation_batch_size is None:
+                    generation_batch_size = self.config.get("generation_batch_size", 1024)
+
+                batch_size = min(generation_batch_size, num_candidates)
                 num_batches = (num_candidates + batch_size - 1) // batch_size
-                
+
                 for batch_idx in range(num_batches):
                     current_batch_size = min(batch_size, num_candidates - len(candidates))
                     
@@ -80,14 +90,11 @@ class GenerativeEnsemble:
                     else:
                         context_with_noise = context
                     
-                    # Expand context for batch
-                    batch_context = context_with_noise.expand(current_batch_size, -1)
-                    
                     # Generate combinations
                     batch_combinations, batch_log_probs = self.cvae_model.generate(
-                        batch_context,
-                        num_samples=1,
-                        temperature=temperature
+                        context_with_noise,
+                        num_samples=current_batch_size,
+                        temperature=temperature,
                     )
                     
                     # Convert to list format and filter duplicates
@@ -110,9 +117,8 @@ class GenerativeEnsemble:
                 attempts = 0
                 
                 while len(candidates) < num_candidates and attempts < max_attempts:
-                    batch_context = context.expand(1, -1)
                     combination, log_prob = self.cvae_model.generate(
-                        batch_context, num_samples=1, temperature=temperature * 1.2
+                        context, num_samples=1, temperature=temperature * 1.2
                     )
                     
                     combo = combination[0].cpu().numpy().tolist()
@@ -319,7 +325,13 @@ class GenerativeEnsemble:
             
             return ranked_candidates, final_scores_sorted, explanations_sorted
     
-    def generate_recommendations(self, num_sets, temperature=0.8, verbose=True):
+    def generate_recommendations(
+        self,
+        num_sets,
+        temperature=0.8,
+        verbose=True,
+        generation_batch_size=None,
+    ):
         """
         Main method to generate final recommendations.
         
@@ -327,6 +339,7 @@ class GenerativeEnsemble:
             num_sets: Number of final recommendations to return
             temperature: Generation temperature
             verbose: Whether to print progress
+            generation_batch_size: Maximum number of samples to generate per batch
         
         Returns:
             recommendations: Final recommended combinations
@@ -343,7 +356,8 @@ class GenerativeEnsemble:
             num_candidates = max(num_sets * 5, 50)  # Generate more candidates than needed
             candidates, generation_scores = self.generate_candidates(
                 num_candidates=num_candidates,
-                temperature=temperature
+                temperature=temperature,
+                generation_batch_size=generation_batch_size,
             )
             
             if verbose:
@@ -487,7 +501,13 @@ def find_latest_model():
     # Return the most recent model
     return existing_models[0][:4]  # Exclude timestamp from return
 
-def run_inference(num_sets_to_generate, use_i_ching=False, temperature=0.8, verbose=True):
+def run_inference(
+    num_sets_to_generate,
+    use_i_ching=False,
+    temperature=0.8,
+    verbose=True,
+    generation_batch_size=None,
+):
     """
     Main inference pipeline using the new generative approach.
     
@@ -496,6 +516,7 @@ def run_inference(num_sets_to_generate, use_i_ching=False, temperature=0.8, verb
         use_i_ching: Whether to include I-Ching scorer
         temperature: Generation temperature (higher = more diverse)
         verbose: Whether to print detailed progress
+        generation_batch_size: Maximum number of samples to generate per batch
     """
     print("\n--- Starting Generative Inference Pipeline ---")
     print("Architecture: CVAE + Meta-Learner + Ensemble Scoring")
@@ -514,8 +535,12 @@ def run_inference(num_sets_to_generate, use_i_ching=False, temperature=0.8, verb
     print(f"📁 Meta-learner: {meta_path}")
     print(f"📁 Feature engineer: {fe_path}")
     
+    if generation_batch_size is None:
+        generation_batch_size = CONFIG.get("generation_batch_size", 1024)
+
     device = torch.device(CONFIG['device'])
     print(f"Running inference on: {device}")
+    print(f"Generation batch size: {generation_batch_size}")
     
     try:
         # Load data
@@ -641,7 +666,8 @@ def run_inference(num_sets_to_generate, use_i_ching=False, temperature=0.8, verb
         recommendations, detailed_results = ensemble.generate_recommendations(
             num_sets=num_sets_to_generate,
             temperature=temperature,
-            verbose=verbose
+            verbose=verbose,
+            generation_batch_size=generation_batch_size,
         )
         
         # Display results
