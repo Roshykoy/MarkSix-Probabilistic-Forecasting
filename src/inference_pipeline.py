@@ -333,6 +333,7 @@ class GenerativeEnsemble:
         temperature=0.8,
         verbose=True,
         generation_batch_size=None,
+        candidate_multiplier=None,
     ):
         """
         Main method to generate final recommendations.
@@ -342,6 +343,7 @@ class GenerativeEnsemble:
             temperature: Generation temperature
             verbose: Whether to print progress
             generation_batch_size: Maximum number of samples to generate per batch
+            candidate_multiplier: Multiplier for generating extra candidates
         
         Returns:
             recommendations: Final recommended combinations
@@ -354,8 +356,15 @@ class GenerativeEnsemble:
             # Step 1: Generate candidate combinations
             if verbose:
                 print("Step 1: Generating candidate combinations...")
-            
-            num_candidates = max(num_sets * 5, 50)  # Generate more candidates than needed
+
+            if candidate_multiplier is None:
+                candidate_multiplier = self.config.get("candidate_multiplier", 5)
+            threshold = self.config.get("large_set_threshold", 10000)
+
+            if num_sets > threshold:
+                num_candidates = num_sets + int(num_sets * 0.1)
+            else:
+                num_candidates = max(int(num_sets * candidate_multiplier), 50)
             candidates, generation_scores = self.generate_candidates(
                 num_candidates=num_candidates,
                 temperature=temperature,
@@ -509,6 +518,7 @@ def run_inference(
     temperature=0.8,
     verbose=True,
     generation_batch_size=None,
+    candidate_multiplier=None,
 ):
     """
     Main inference pipeline using the new generative approach.
@@ -519,6 +529,7 @@ def run_inference(
         temperature: Generation temperature (higher = more diverse)
         verbose: Whether to print detailed progress
         generation_batch_size: Maximum number of samples to generate per batch
+        candidate_multiplier: Multiplier for generating extra candidates
     """
     print("\n--- Starting Generative Inference Pipeline ---")
     print("Architecture: CVAE + Meta-Learner + Ensemble Scoring")
@@ -539,10 +550,13 @@ def run_inference(
     
     if generation_batch_size is None:
         generation_batch_size = CONFIG.get("generation_batch_size", 1024)
+    if candidate_multiplier is None:
+        candidate_multiplier = CONFIG.get("candidate_multiplier", 5)
 
     device = torch.device(CONFIG['device'])
     print(f"Running inference on: {device}")
     print(f"Generation batch size: {generation_batch_size}")
+    print(f"Candidate multiplier: {candidate_multiplier}")
     
     try:
         # Load data
@@ -664,12 +678,13 @@ def run_inference(
         print(f"\nGenerating {num_sets_to_generate} number combinations...")
         print(f"Using I-Ching scorer: {'Yes' if use_i_ching else 'No'}")
         print(f"Generation temperature: {temperature}")
-        
+        print(f"Candidate multiplier: {candidate_multiplier}")
         recommendations, detailed_results = ensemble.generate_recommendations(
             num_sets=num_sets_to_generate,
             temperature=temperature,
             verbose=verbose,
             generation_batch_size=generation_batch_size,
+            candidate_multiplier=candidate_multiplier,
         )
         
         # Display results
