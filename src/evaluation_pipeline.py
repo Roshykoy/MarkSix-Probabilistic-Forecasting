@@ -198,7 +198,7 @@ class CVAEEvaluator:
             
             # Use meta-learner for final ranking
             ranked_combinations, final_scores, _ = ensemble.ensemble_rerank(
-                all_combinations, all_scores
+                all_combinations, all_scores, num_sets=len(all_combinations)
             )
             
             # Check if positive combination is ranked first
