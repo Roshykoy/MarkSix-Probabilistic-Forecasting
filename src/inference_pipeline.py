@@ -599,7 +599,12 @@ def run_inference(num_sets_to_generate, use_i_ching=False, temperature=0.8, verb
         temporal_scorer = TemporalScorer(CONFIG)
         temporal_scorer.fit(df)
         
-        i_ching_scorer = IChingScorer(CONFIG) if use_i_ching else None
+        # Prepare historical draws for the I-Ching scorer if enabled
+        i_ching_scorer = None
+        if use_i_ching:
+            draw_cols = [f"Winning_Num_{i}" for i in range(1, 7)]
+            historical_draws = df[draw_cols].values.tolist()
+            i_ching_scorer = IChingScorer(CONFIG, historical_draws)
         
         # Create ensemble
         ensemble = GenerativeEnsemble(

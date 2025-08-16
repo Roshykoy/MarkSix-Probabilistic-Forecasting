@@ -37,7 +37,9 @@ class CVAEEvaluator:
         self._historical_jsd = None  # Cache for historical JSD calculation
         self.temporal_scorer = TemporalScorer(config)
         self.temporal_scorer.fit(df)
-        self.i_ching_scorer = IChingScorer(config)
+        draw_cols = [f"Winning_Num_{i}" for i in range(1, 7)]
+        historical_draws = df[draw_cols].values.tolist()
+        self.i_ching_scorer = IChingScorer(config, historical_draws)
         
     def evaluate_generation_quality(self, num_samples=100):
         """
