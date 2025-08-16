@@ -202,6 +202,8 @@ def get_inference_options():
         print("Invalid input. Please enter a valid number.")
         return None
     
+    generation_batch_size = CONFIG['generation_batch_size']
+
     if method_choice == 1 or method_choice == 3:
         # AI model options
         try:
@@ -210,10 +212,22 @@ def get_inference_options():
             temperature = max(0.1, min(2.0, temperature))
         except ValueError:
             temperature = 0.8
-        
+
+        try:
+            batch_input = input(
+                f"Generation batch size (default: {CONFIG['generation_batch_size']}): "
+            )
+            generation_batch_size = (
+                int(batch_input) if batch_input else CONFIG['generation_batch_size']
+            )
+            if generation_batch_size <= 0:
+                generation_batch_size = CONFIG['generation_batch_size']
+        except ValueError:
+            generation_batch_size = CONFIG['generation_batch_size']
+
         use_iching_input = input("Use the I-Ching scorer? (y/n, default: n): ").lower()
         use_iching = use_iching_input == 'y'
-        
+
         verbose = input("Show detailed generation process? (y/n, default: y): ").lower() != 'n'
         
         print("\nGeneration Modes:")
@@ -256,7 +270,8 @@ def get_inference_options():
         'temperature': temperature,
         'use_i_ching': use_iching,
         'verbose': verbose,
-        'mode': mode_choice_detail
+        'mode': mode_choice_detail,
+        'generation_batch_size': generation_batch_size,
     }
 
 
@@ -1125,6 +1140,7 @@ def main_menu():
                     print("\n🤖 AI Model Inference Selected")
                     print(f"• Number of sets: {inference_config['num_sets']}")
                     print(f"• Temperature: {inference_config['temperature']:.2f}")
+                    print(f"• Generation batch size: {inference_config['generation_batch_size']}")
                     print(f"• I-Ching scorer: {'Yes' if inference_config['use_i_ching'] else 'No'}")
                     print(f"• Verbose output: {'Yes' if inference_config['verbose'] else 'No'}")
                     
@@ -1132,7 +1148,8 @@ def main_menu():
                         num_sets_to_generate=inference_config['num_sets'],
                         use_i_ching=inference_config['use_i_ching'],
                         temperature=inference_config['temperature'],
-                        verbose=inference_config['verbose']
+                        verbose=inference_config['verbose'],
+                        generation_batch_size=inference_config['generation_batch_size'],
                     )
                     
                 elif inference_config['method'] == 2:  # Statistical Analysis
@@ -1150,6 +1167,7 @@ def main_menu():
                     print("\n🔄 Hybrid AI + Statistical Analysis Selected")
                     print(f"• Number of sets: {inference_config['num_sets']}")
                     print(f"• AI Temperature: {inference_config['temperature']:.2f}")
+                    print(f"• Generation batch size: {inference_config['generation_batch_size']}")
                     print(f"• Statistical mode: {inference_config['mode']}")
                     
                     # Run both AI and statistical predictions
@@ -1161,7 +1179,8 @@ def main_menu():
                         num_sets_to_generate=ai_sets,
                         use_i_ching=inference_config['use_i_ching'],
                         temperature=inference_config['temperature'],
-                        verbose=False
+                        verbose=False,
+                        generation_batch_size=inference_config['generation_batch_size'],
                     )
                     
                     print(f"\n📊 Generating {stat_sets} sets using statistical analysis...")
