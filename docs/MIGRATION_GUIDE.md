@@ -158,6 +158,17 @@ python run_tests.py
 ./config/system_config.json
 ```
 
+### 6. Inference Pipeline Updates
+**BEFORE:**
+```
+Legacy `ScorerEnsemble` class and `local_search` function provided heuristic scoring and optimization.
+```
+
+**AFTER:**
+```
+These legacy components have been removed. Use the generative `GenerativeEnsemble` workflow for candidate generation and ranking.
+```
+
 ---
 
 ## 🧪 New Test System

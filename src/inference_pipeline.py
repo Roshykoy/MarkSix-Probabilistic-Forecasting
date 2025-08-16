@@ -684,20 +684,3 @@ def save_results_to_file(detailed_results, use_i_ching, temperature):
         
     except Exception as e:
         print(f"Warning: Could not save results to file: {e}")
-
-# Legacy compatibility functions (for old scoring system)
-class ScorerEnsemble:
-    """Legacy ensemble class for backward compatibility."""
-    
-    def __init__(self, model, fe, temporal_scorer, i_ching_scorer, df_all_draws, config, use_i_ching=False):
-        print("[WARNING] Using legacy ScorerEnsemble. Consider upgrading to GenerativeEnsemble.")
-        self.config = config
-        
-    def score(self, number_set):
-        print("[WARNING] Legacy scoring called. This functionality is deprecated.")
-        return 0.5
-
-def local_search(initial_set, scorer_ensemble, max_iterations, num_neighbors):
-    """Legacy local search function for backward compatibility."""
-    print("[WARNING] Local search is deprecated. Use generative inference instead.")
-    return initial_set, 0.5
