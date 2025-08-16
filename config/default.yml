@@ -95,6 +95,10 @@ inference:
     generative: 0.7
     temporal: 0.2
     i_ching: 0.1
+  # Candidate generation settings
+  candidate_multiplier: 5
+  large_candidate_threshold: 10000
+  large_candidate_extra_ratio: 0.1
 
 data:
   data_path: "data/raw/Mark_Six.csv"
