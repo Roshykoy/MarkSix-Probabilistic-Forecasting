@@ -7,6 +7,7 @@ from tqdm import tqdm
 import os
 from collections import defaultdict
 import random
+from typing import Set, Tuple
 
 from src.config import CONFIG
 from src.cvae_model import ConditionalVAE
@@ -52,6 +53,7 @@ class GenerativeEnsemble:
             candidates: List of unique 6-number combinations
             generation_scores: CVAE probability scores for each combination
         """
+        seen: Set[Tuple[int, ...]] = set()
         try:
             with torch.no_grad():
                 # Get current temporal context
@@ -92,14 +94,16 @@ class GenerativeEnsemble:
                     for i in range(current_batch_size):
                         combo = batch_combinations[i].cpu().numpy().tolist()
                         combo_tuple = tuple(sorted(combo))
-                        
+
                         # Check for duplicates and validity
-                        if (combo_tuple not in [tuple(sorted(c)) for c in candidates] and
-                            len(set(combo)) == 6 and
-                            all(1 <= num <= self.config['num_lotto_numbers'] for num in combo)):
-                            
+                        if (
+                            combo_tuple not in seen
+                            and len(set(combo)) == 6
+                            and all(1 <= num <= self.config['num_lotto_numbers'] for num in combo)
+                        ):
                             candidates.append(sorted(combo))
                             generation_scores.append(batch_log_probs[i].item())
+                            seen.add(combo_tuple)
                 
                 # If we don't have enough unique candidates, generate more
                 max_attempts = num_candidates * 3  # Prevent infinite loop
@@ -113,13 +117,15 @@ class GenerativeEnsemble:
                     
                     combo = combination[0].cpu().numpy().tolist()
                     combo_tuple = tuple(sorted(combo))
-                    
-                    if (combo_tuple not in [tuple(sorted(c)) for c in candidates] and
-                        len(set(combo)) == 6 and
-                        all(1 <= num <= self.config['num_lotto_numbers'] for num in combo)):
-                        
+
+                    if (
+                        combo_tuple not in seen
+                        and len(set(combo)) == 6
+                        and all(1 <= num <= self.config['num_lotto_numbers'] for num in combo)
+                    ):
                         candidates.append(sorted(combo))
                         generation_scores.append(log_prob[0].item())
+                        seen.add(combo_tuple)
                     
                     attempts += 1
                 
@@ -127,10 +133,16 @@ class GenerativeEnsemble:
                 if len(candidates) < num_candidates:
                     print(f"Warning: Only generated {len(candidates)}/{num_candidates} unique candidates. Filling with random combinations.")
                     while len(candidates) < num_candidates:
-                        random_combo = sorted(random.sample(range(1, self.config['num_lotto_numbers'] + 1), 6))
-                        if tuple(random_combo) not in [tuple(sorted(c)) for c in candidates]:
+                        random_combo = sorted(
+                            random.sample(
+                                range(1, self.config['num_lotto_numbers'] + 1), 6
+                            )
+                        )
+                        combo_tuple = tuple(random_combo)
+                        if combo_tuple not in seen:
                             candidates.append(random_combo)
                             generation_scores.append(0.0)  # Assign neutral score to random combinations
+                            seen.add(combo_tuple)
                 
                 return candidates[:num_candidates], generation_scores[:num_candidates]
                 
@@ -140,12 +152,15 @@ class GenerativeEnsemble:
             print("Falling back to random combination generation...")
             candidates = []
             generation_scores = []
-            
+            seen = set()
+
             while len(candidates) < num_candidates:
                 random_combo = sorted(random.sample(range(1, self.config['num_lotto_numbers'] + 1), 6))
-                if tuple(random_combo) not in [tuple(sorted(c)) for c in candidates]:
+                combo_tuple = tuple(random_combo)
+                if combo_tuple not in seen:
                     candidates.append(random_combo)
                     generation_scores.append(0.0)
+                    seen.add(combo_tuple)
             
             return candidates, generation_scores
     
