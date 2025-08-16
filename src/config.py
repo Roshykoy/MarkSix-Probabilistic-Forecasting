@@ -143,6 +143,10 @@ CONFIG = {
     },
     "search_iterations": 0,    # Disabled - replaced by generation
     "search_neighbors": 0,     # Disabled - replaced by generation
+    # Candidate generation settings
+    "candidate_multiplier": 5,            # Multiplier for candidate generation
+    "large_candidate_threshold": 10000,    # Threshold for large requests
+    "large_candidate_extra_ratio": 0.1,    # Extra ratio for large requests
     
     # =============================================================================
     # PHASE 1 PERFORMANCE OPTIMIZATIONS (APPROVED BY EXPERT PANEL)

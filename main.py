@@ -213,8 +213,14 @@ def get_inference_options():
         
         use_iching_input = input("Use the I-Ching scorer? (y/n, default: n): ").lower()
         use_iching = use_iching_input == 'y'
-        
+
         verbose = input("Show detailed generation process? (y/n, default: y): ").lower() != 'n'
+
+        try:
+            cm_input = input(f"Candidate multiplier (default: {CONFIG.get('candidate_multiplier', 5)}): ")
+            candidate_multiplier = float(cm_input) if cm_input else CONFIG.get('candidate_multiplier', 5)
+        except ValueError:
+            candidate_multiplier = CONFIG.get('candidate_multiplier', 5)
         
         print("\nGeneration Modes:")
         print("1. Standard generation (recommended)")
@@ -256,7 +262,8 @@ def get_inference_options():
         'temperature': temperature,
         'use_i_ching': use_iching,
         'verbose': verbose,
-        'mode': mode_choice_detail
+        'mode': mode_choice_detail,
+        'candidate_multiplier': locals().get('candidate_multiplier', CONFIG.get('candidate_multiplier', 5))
     }
 
 
@@ -1132,7 +1139,8 @@ def main_menu():
                         num_sets_to_generate=inference_config['num_sets'],
                         use_i_ching=inference_config['use_i_ching'],
                         temperature=inference_config['temperature'],
-                        verbose=inference_config['verbose']
+                        verbose=inference_config['verbose'],
+                        candidate_multiplier=inference_config.get('candidate_multiplier')
                     )
                     
                 elif inference_config['method'] == 2:  # Statistical Analysis
@@ -1161,7 +1169,8 @@ def main_menu():
                         num_sets_to_generate=ai_sets,
                         use_i_ching=inference_config['use_i_ching'],
                         temperature=inference_config['temperature'],
-                        verbose=False
+                        verbose=False,
+                        candidate_multiplier=inference_config.get('candidate_multiplier')
                     )
                     
                     print(f"\n📊 Generating {stat_sets} sets using statistical analysis...")

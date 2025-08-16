@@ -304,7 +304,7 @@ class GenerativeEnsemble:
             
             return ranked_candidates, final_scores_sorted, explanations_sorted
     
-    def generate_recommendations(self, num_sets, temperature=0.8, verbose=True):
+    def generate_recommendations(self, num_sets, temperature=0.8, verbose=True, candidate_multiplier=None):
         """
         Main method to generate final recommendations.
         
@@ -312,6 +312,7 @@ class GenerativeEnsemble:
             num_sets: Number of final recommendations to return
             temperature: Generation temperature
             verbose: Whether to print progress
+            candidate_multiplier: Optional override for candidate generation multiplier
         
         Returns:
             recommendations: Final recommended combinations
@@ -324,8 +325,17 @@ class GenerativeEnsemble:
             # Step 1: Generate candidate combinations
             if verbose:
                 print("Step 1: Generating candidate combinations...")
-            
-            num_candidates = max(num_sets * 5, 50)  # Generate more candidates than needed
+
+            # Determine how many candidates to generate
+            large_threshold = self.config.get('large_candidate_threshold', 10000)
+            extra_ratio = self.config.get('large_candidate_extra_ratio', 0.1)
+            multiplier = candidate_multiplier or self.config.get('candidate_multiplier', 5)
+
+            if num_sets > large_threshold:
+                # For extremely large requests, only generate 10% extra
+                num_candidates = num_sets + int(num_sets * extra_ratio)
+            else:
+                num_candidates = max(int(num_sets * multiplier), 50)  # Generate more candidates than needed
             candidates, generation_scores = self.generate_candidates(
                 num_candidates=num_candidates,
                 temperature=temperature
@@ -472,7 +482,7 @@ def find_latest_model():
     # Return the most recent model
     return existing_models[0][:4]  # Exclude timestamp from return
 
-def run_inference(num_sets_to_generate, use_i_ching=False, temperature=0.8, verbose=True):
+def run_inference(num_sets_to_generate, use_i_ching=False, temperature=0.8, verbose=True, candidate_multiplier=None):
     """
     Main inference pipeline using the new generative approach.
     
@@ -481,6 +491,7 @@ def run_inference(num_sets_to_generate, use_i_ching=False, temperature=0.8, verb
         use_i_ching: Whether to include I-Ching scorer
         temperature: Generation temperature (higher = more diverse)
         verbose: Whether to print detailed progress
+        candidate_multiplier: Optional override for candidate generation multiplier
     """
     print("\n--- Starting Generative Inference Pipeline ---")
     print("Architecture: CVAE + Meta-Learner + Ensemble Scoring")
@@ -626,7 +637,8 @@ def run_inference(num_sets_to_generate, use_i_ching=False, temperature=0.8, verb
         recommendations, detailed_results = ensemble.generate_recommendations(
             num_sets=num_sets_to_generate,
             temperature=temperature,
-            verbose=verbose
+            verbose=verbose,
+            candidate_multiplier=candidate_multiplier
         )
         
         # Display results
