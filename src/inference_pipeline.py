@@ -7,6 +7,7 @@ from tqdm import tqdm
 import os
 from collections import defaultdict
 import random
+import heapq
 
 from src.config import CONFIG
 from src.cvae_model import ConditionalVAE
@@ -222,17 +223,18 @@ class GenerativeEnsemble:
 
         return scores_dict
     
-    def ensemble_rerank(self, candidates, scores_dict):
+    def ensemble_rerank(self, candidates, scores_dict, num_sets):
         """
         Re-rank candidates using the meta-learner for dynamic ensemble weights.
-        
+
         Args:
             candidates: List of number combinations
             scores_dict: Dictionary of scores from different methods
-        
+            num_sets: Number of top combinations to return
+
         Returns:
-            ranked_candidates: Candidates sorted by final ensemble score
-            final_scores: Final ensemble scores
+            ranked_candidates: Top candidates sorted by final ensemble score
+            final_scores: Final ensemble scores for the top candidates
             explanations: Weight explanations from meta-learner
         """
         try:
@@ -258,20 +260,19 @@ class GenerativeEnsemble:
                 ensemble_weights, final_scores, confidence = self.meta_learner(
                     candidates, batch_context, scorer_scores
                 )
-                
+
                 # Get explanations
                 explanations = self.meta_learner.get_weight_explanations(
                     candidates, batch_context, scorer_scores
                 )
-            
-            # Sort candidates by final scores
-            scored_candidates = list(zip(candidates, final_scores.cpu().numpy(), explanations))
-            scored_candidates.sort(key=lambda x: x[1], reverse=True)
-            
-            ranked_candidates = [item[0] for item in scored_candidates]
-            final_scores_sorted = [item[1] for item in scored_candidates]
-            explanations_sorted = [item[2] for item in scored_candidates]
-            
+
+            # Select top candidates using torch.topk
+            k = min(num_sets, len(candidates))
+            top_scores, top_indices = torch.topk(final_scores, k)
+            ranked_candidates = [candidates[i] for i in top_indices.cpu().tolist()]
+            final_scores_sorted = top_scores.cpu().numpy().tolist()
+            explanations_sorted = [explanations[i] for i in top_indices.cpu().tolist()]
+
             return ranked_candidates, final_scores_sorted, explanations_sorted
             
         except Exception as e:
@@ -288,20 +289,19 @@ class GenerativeEnsemble:
                         (weights['i_ching'] * scores_dict['i_ching'][i] if self.use_i_ching else 0))
                 final_scores.append(score)
             
-            # Sort by scores
-            scored_candidates = list(zip(candidates, final_scores))
-            scored_candidates.sort(key=lambda x: x[1], reverse=True)
-            
-            ranked_candidates = [item[0] for item in scored_candidates]
-            final_scores_sorted = [item[1] for item in scored_candidates]
-            
+            # Select top candidates using heapq
+            k = min(num_sets, len(candidates))
+            top_indices = heapq.nlargest(k, range(len(final_scores)), key=lambda i: final_scores[i])
+            ranked_candidates = [candidates[i] for i in top_indices]
+            final_scores_sorted = [final_scores[i] for i in top_indices]
+
             # Create dummy explanations
             explanations_sorted = [{
                 'weights': weights,
                 'confidence': 0.5,
                 'reasoning': "Fallback scoring due to meta-learner error"
-            } for _ in candidates]
-            
+            } for _ in top_indices]
+
             return ranked_candidates, final_scores_sorted, explanations_sorted
     
     def generate_recommendations(self, num_sets, temperature=0.8, verbose=True):
@@ -345,31 +345,32 @@ class GenerativeEnsemble:
                 print("Step 3: Re-ranking with meta-learner...")
             
             ranked_candidates, final_scores, explanations = self.ensemble_rerank(
-                candidates, scores_dict
+                candidates, scores_dict, num_sets=num_sets
             )
-            
-            # Step 4: Select top recommendations
-            recommendations = ranked_candidates[:num_sets]
-            
+
+            # Step 4: Top recommendations already selected
+            recommendations = ranked_candidates
+
             # Prepare detailed results
             detailed_results = []
-            for i in range(min(num_sets, len(ranked_candidates))):
+            for i, combo in enumerate(recommendations):
+                idx = candidates.index(combo)
                 result = {
-                    'combination': recommendations[i],
+                    'combination': combo,
                     'final_score': final_scores[i],
                     'individual_scores': {
-                        'generative': scores_dict['generative'][candidates.index(recommendations[i])],
-                        'temporal': scores_dict['temporal'][candidates.index(recommendations[i])],
-                        'i_ching': scores_dict['i_ching'][candidates.index(recommendations[i])] if self.use_i_ching else 0.0
+                        'generative': scores_dict['generative'][idx],
+                        'temporal': scores_dict['temporal'][idx],
+                        'i_ching': scores_dict['i_ching'][idx] if self.use_i_ching else 0.0
                     },
                     'explanation': explanations[i],
                     'rank': i + 1
                 }
                 detailed_results.append(result)
-            
+
             if verbose:
                 print(f"Generated {len(recommendations)} final recommendations")
-            
+
             return recommendations, detailed_results
             
         except Exception as e:
