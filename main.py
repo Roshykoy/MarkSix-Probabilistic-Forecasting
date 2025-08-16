@@ -201,8 +201,9 @@ def get_inference_options():
     except ValueError:
         print("Invalid input. Please enter a valid number.")
         return None
-    
+
     generation_batch_size = CONFIG['generation_batch_size']
+    candidate_multiplier = CONFIG.get('candidate_multiplier', 5)
 
     if method_choice == 1 or method_choice == 3:
         # AI model options
@@ -224,6 +225,16 @@ def get_inference_options():
                 generation_batch_size = CONFIG['generation_batch_size']
         except ValueError:
             generation_batch_size = CONFIG['generation_batch_size']
+
+        try:
+            cm_input = input(
+                f"Candidate multiplier (default: {candidate_multiplier}): "
+            )
+            candidate_multiplier = float(cm_input) if cm_input else candidate_multiplier
+            if candidate_multiplier <= 0:
+                candidate_multiplier = CONFIG.get('candidate_multiplier', 5)
+        except ValueError:
+            candidate_multiplier = CONFIG.get('candidate_multiplier', 5)
 
         use_iching_input = input("Use the I-Ching scorer? (y/n, default: n): ").lower()
         use_iching = use_iching_input == 'y'
@@ -263,7 +274,7 @@ def get_inference_options():
         temperature = 0.8
         use_iching = False
         verbose = True
-    
+
     return {
         'method': method_choice,
         'num_sets': num_sets,
@@ -272,6 +283,7 @@ def get_inference_options():
         'verbose': verbose,
         'mode': mode_choice_detail,
         'generation_batch_size': generation_batch_size,
+        'candidate_multiplier': candidate_multiplier,
     }
 
 
@@ -1150,6 +1162,7 @@ def main_menu():
                         temperature=inference_config['temperature'],
                         verbose=inference_config['verbose'],
                         generation_batch_size=inference_config['generation_batch_size'],
+                        candidate_multiplier=inference_config['candidate_multiplier'],
                     )
                     
                 elif inference_config['method'] == 2:  # Statistical Analysis
@@ -1181,6 +1194,7 @@ def main_menu():
                         temperature=inference_config['temperature'],
                         verbose=False,
                         generation_batch_size=inference_config['generation_batch_size'],
+                        candidate_multiplier=inference_config['candidate_multiplier'],
                     )
                     
                     print(f"\n📊 Generating {stat_sets} sets using statistical analysis...")

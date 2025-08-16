@@ -131,6 +131,8 @@ CONFIG = {
     "top_k_sampling": 5,             # Reduced from 10
     "generation_batch_size": 1024,   # Maximum samples per generation batch
     "ensemble_selection_method": "fixed_weights",  # Changed from "meta_learned" for stability
+    "candidate_multiplier": 5,       # Multiplier for generating extra candidates
+    "large_set_threshold": 10000,    # Threshold for switching to 10% extra candidates
     
     # Evaluation Parameters
     "evaluation_neg_samples": 49,    # Reduced from 99
