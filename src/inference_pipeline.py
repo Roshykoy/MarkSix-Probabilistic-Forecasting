@@ -8,6 +8,7 @@ import os
 from collections import defaultdict
 import random
 from typing import Set, Tuple
+import heapq
 
 from src.config import CONFIG
 from src.cvae_model import ConditionalVAE
@@ -243,7 +244,7 @@ class GenerativeEnsemble:
 
         return scores_dict
     
-    def ensemble_rerank(self, candidates, scores_dict):
+    def ensemble_rerank(self, candidates, scores_dict, num_sets):
         """
         Re-rank candidates using the meta-learner for dynamic ensemble weights.
         
@@ -285,14 +286,14 @@ class GenerativeEnsemble:
                     candidates, batch_context, scorer_scores
                 )
             
-            # Sort candidates by final scores
-            scored_candidates = list(zip(candidates, final_scores.cpu().numpy(), explanations))
-            scored_candidates.sort(key=lambda x: x[1], reverse=True)
-            
-            ranked_candidates = [item[0] for item in scored_candidates]
-            final_scores_sorted = [item[1] for item in scored_candidates]
-            explanations_sorted = [item[2] for item in scored_candidates]
-            
+            # Select top candidates by final scores
+            k = min(num_sets, len(candidates))
+            top_scores, top_indices = torch.topk(final_scores, k)
+
+            ranked_candidates = [candidates[idx] for idx in top_indices.cpu().tolist()]
+            final_scores_sorted = top_scores.cpu().tolist()
+            explanations_sorted = [explanations[idx] for idx in top_indices.cpu().tolist()]
+
             return ranked_candidates, final_scores_sorted, explanations_sorted
             
         except Exception as e:
@@ -309,20 +310,21 @@ class GenerativeEnsemble:
                         (weights['i_ching'] * scores_dict['i_ching'][i] if self.use_i_ching else 0))
                 final_scores.append(score)
             
-            # Sort by scores
+            # Select top candidates using heap
+            k = min(num_sets, len(candidates))
             scored_candidates = list(zip(candidates, final_scores))
-            scored_candidates.sort(key=lambda x: x[1], reverse=True)
-            
-            ranked_candidates = [item[0] for item in scored_candidates]
-            final_scores_sorted = [item[1] for item in scored_candidates]
-            
+            top_candidates = heapq.nlargest(k, scored_candidates, key=lambda x: x[1])
+
+            ranked_candidates = [item[0] for item in top_candidates]
+            final_scores_sorted = [item[1] for item in top_candidates]
+
             # Create dummy explanations
             explanations_sorted = [{
                 'weights': weights,
                 'confidence': 0.5,
                 'reasoning': "Fallback scoring due to meta-learner error"
-            } for _ in candidates]
-            
+            } for _ in ranked_candidates]
+
             return ranked_candidates, final_scores_sorted, explanations_sorted
     
     def generate_recommendations(
@@ -374,22 +376,22 @@ class GenerativeEnsemble:
                 print("Step 3: Re-ranking with meta-learner...")
             
             ranked_candidates, final_scores, explanations = self.ensemble_rerank(
-                candidates, scores_dict
+                candidates, scores_dict, num_sets
             )
-            
+
             # Step 4: Select top recommendations
-            recommendations = ranked_candidates[:num_sets]
+            recommendations = ranked_candidates
             
             # Prepare detailed results
             detailed_results = []
-            for i in range(min(num_sets, len(ranked_candidates))):
+            for i, combo in enumerate(recommendations):
                 result = {
-                    'combination': recommendations[i],
+                    'combination': combo,
                     'final_score': final_scores[i],
                     'individual_scores': {
-                        'generative': scores_dict['generative'][candidates.index(recommendations[i])],
-                        'temporal': scores_dict['temporal'][candidates.index(recommendations[i])],
-                        'i_ching': scores_dict['i_ching'][candidates.index(recommendations[i])] if self.use_i_ching else 0.0
+                        'generative': scores_dict['generative'][candidates.index(combo)],
+                        'temporal': scores_dict['temporal'][candidates.index(combo)],
+                        'i_ching': scores_dict['i_ching'][candidates.index(combo)] if self.use_i_ching else 0.0
                     },
                     'explanation': explanations[i],
                     'rank': i + 1
